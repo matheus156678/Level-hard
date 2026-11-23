@@ -1,0 +1,31 @@
+body{margin:0;min-height:100vh;display:grid;place-items:center;padding:18px;font-family:Arial,sans-serif;background:radial-gradient(circle at top,#18365d,#091321 65%);color:#f5f8ff}.game-shell{width:min(
+  
+
+  |
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+                  ,100%);margin:auto}header{text-align:center;margin-bottom:12px}h1{font-size:clamp(1.8rem,5vw,3rem);margin:0}header p,.help{color:#b9c8df}.hud{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}.stat{flex:1;min-width:100px;padding:10px;border:1px solid #355172;border-radius:12px;background:#12243a;text-align:center;font-weight:bold}.stat span{color:#ffd45a}canvas{display:block;width:100%;height:auto;border:2px solid #41648d;border-radius:16px;background:#102a37;touch-action:none}.controls{display:flex;justify-content:center;margin:12px}.pad{display:grid;grid-template-columns:repeat(3,56px);gap:6px;justify-content:center}.empty{visibility:hidden}button{border:0;border-radius:12px;padding:12px 17px;font-size:16px;font-weight:bold;cursor:pointer;color:#092033;background:#ffd45a}.pad button{padding:12px 0;background:#bde7ff}.message{text-align:center;min-height:1.5em;margin:8px 0;color:#ffe58c;font-weight:bold}.help{text-align:center;line-height:1.5;font-size:.95rem}
