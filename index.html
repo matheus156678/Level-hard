@@ -1,0 +1,256 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LEVEL TROLL</title>
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;background:#101116;color:white;
+ font-family:Arial,sans-serif;text-align:center;
+}
+h1{color:#ff4141;letter-spacing:5px;margin:18px 0 5px}
+p{color:#c8c8d2;margin:8px}
+#hud{display:flex;justify-content:center;gap:22px;flex-wrap:wrap;margin:15px}
+#game{
+ display:block;width:min(95vw,800px);height:auto;
+ margin:auto;border:3px solid #424653;border-radius:8px;
+ background:#171a24;touch-action:none;
+}
+button{
+ background:#ff4141;color:white;border:0;border-radius:9px;
+ padding:12px 18px;font-size:16px;font-weight:bold;cursor:pointer;
+}
+button:active{transform:scale(.95)}
+#controls{display:flex;justify-content:center;gap:10px;margin:14px}
+#controls button{min-width:65px;background:#343744}
+#msg{height:28px;color:#ffd45a;font-weight:bold}
+small{color:#a8a9b5}
+</style>
+</head>
+<body>
+<h1>LEVEL TROLL</h1>
+<p>O jogo mais injusto que parece fácil! 😈</p>
+<div id="hud">
+ <span>FASE: <b id="level">1</b>/5</span>
+ <span>MOEDAS: <b id="coins">0</b></span>
+ <span>DERROTAS: <b id="deaths">0</b></span>
+</div>
+<canvas id="game" width="800" height="450"></canvas>
+<div id="msg">Chegue à porta verde... se conseguir!</div>
+<div id="controls">
+ <button id="left">◀</button>
+ <button id="jump">⬆ PULAR</button>
+ <button id="right">▶</button>
+ <button id="restart">↻</button>
+</div>
+<p><small>Teclado: A/D ou ←/→ para andar • Espaço ou ↑ para pular • R para reiniciar</small></p>
+
+<script>
+const c=document.getElementById('game');
+const ctx=c.getContext('2d');
+const $=id=>document.getElementById(id);
+
+const maps=[
+ {start:35, floor:390, exit:740, pits:[[250,290]], spikes:[[420,455]], coins:[[170,350]], trap:0},
+ {start:35, floor:390, exit:740, pits:[[180,225],[400,450]], spikes:[[300,330],[570,605]], coins:[[120,350],[350,300]], trap:1},
+ {start:35, floor:390, exit:740, pits:[[260,320],[510,565]], spikes:[[180,210],[400,435]], coins:[[120,350],[360,350]], trap:2},
+ {start:35, floor:390, exit:740, pits:[[150,205],[330,385],[520,580]], spikes:[[245,275],[430,465],[635,665]], coins:[[100,350],[290,310],[470,310]], trap:3},
+ {start:35, floor:390, exit:740, pits:[[210,270],[390,455],[570,625]], spikes:[[145,175],[310,345],[490,525],[660,690]], coins:[[100,340],[350,320],[540,320]], trap:4}
+];
+let level=0,deaths=0,coins=0,frame=0,won=false,dead=false;
+let keys={},hold={left:false,right:false,jump:false};
+let player,platforms=[],spikes=[],coinList=[],exit,trapTriggered=false;
+let notice='Chegue à porta verde... se conseguir!',noticeTime=150;
+
+function say(t){notice=t;noticeTime=110;$('msg').textContent=t}
+function resetPlayer(){
+ const m=maps[level];
+ player={x:m.start,y:350,w:24,h:34,vx:0,vy:0,ground:false};
+ dead=false;won=false;frame=0;trapTriggered=false;
+ platforms=[];spikes=[];coinList=[];
+ platforms.push({x:0,y:m.floor,w:800,h:60});
+ m.pits.forEach(p=>platforms.push({x:p[0],y:m.floor,w:p[1]-p[0],h:60,hidden:false}));
+ // Pits are gaps: remove floor beneath them.
+ platforms=platforms.filter(p=>!m.pits.some(q=>p.x===0&&p.w===800&&q[0]<p.x+p.w&&q[1]>p.x));
+ // Build floor as segments around the pits.
+ platforms=[];
+ let at=0;
+ m.pits.forEach(p=>{
+   if(p[0]>at)platforms.push({x:at,y:m.floor,w:p[0]-at,h:60});
+   at=p[1];
+ });
+ if(at<800)platforms.push({x:at,y:m.floor,w:800-at,h:60});
+ m.spikes.forEach(s=>spikes.push({x:s[0],y:m.floor-22,w:s[1]-s[0],h:22,active:true}));
+ m.coins.forEach((a,i)=>coinList.push({x:a[0],y:a[1],got:false}));
+ exit={x:m.exit,y:m.floor-55,w:32,h:55};
+ say(level===0?'A porta está logo ali. Moleza!':'Nova fase. Boa sorte... você vai precisar.');
+ $('level').textContent=level+1;
+ $('coins').textContent=coins;
+ $('deaths').textContent=deaths;
+}
+function respawn(){
+ if(dead||won)return;
+ deaths++;$('deaths').textContent=deaths;
+ resetPlayer();
+ say(['Ops! 😈','Você caiu nessa!','Pegadinha!','Tente de novo!'][Math.floor(Math.random()*4)]);
+}
+function nextLevel(){
+ if(level<4){level++;resetPlayer()}
+ else{won=true;say('VOCÊ VENCEU! O troll perdeu! 🏆')}
+}
+function overlap(a,b){
+ return a.x<b.x+b.w&&a.x+a.w>b.x&&a.y<b.y+b.h&&a.y+a.h>b.y;
+}
+function update(){
+ if(won||dead)return;
+ frame++;
+ const m=maps[level];
+ let left=keys.ArrowLeft||keys.a||hold.left;
+ let right=keys.ArrowRight||keys.d||hold.right;
+ let jump=keys.ArrowUp||keys[' ']||keys.w||hold.jump;
+ player.vx=left?-3.7:right?3.7:0;
+ player.x+=player.vx;
+ player.x=Math.max(0,Math.min(776,player.x));
+ if(jump&&player.ground){player.vy=-10.5;player.ground=false}
+ player.vy+=0.48;
+ player.vy=Math.min(player.vy,12);
+ player.y+=player.vy;
+ player.ground=false;
+ for(const p of platforms){
+   if(player.vy>=0&&player.x+player.w>p.x&&player.x<p.x+p.w&&player.y+player.h>=p.y&&player.y+player.h-player.vy<=p.y){
+     player.y=p.y-player.h;player.vy=0;player.ground=true;
+   }
+ }
+ // Troll: a safe-looking floor suddenly vanishes.
+ if(level===0&&player.x>200&&!trapTriggered){
+   trapTriggered=true;
+   platforms=platforms.filter(p=>!(p.x===0&&p.w>200));
+   say('O CHÃO SUMIU! 😂');
+ }
+ if(level===1&&player.x>280&&!trapTriggered){
+   trapTriggered=true;
+   spikes.push({x:player.x+90,y:maps[level].floor-22,w:45,h:22,active:true});
+   say('Espinhos surpresa! 😈');
+ }
+ if(level===2&&player.x>350&&!trapTriggered){
+   trapTriggered=true;
+   exit.x=80;
+   say('A PORTA FUGIU! Vai atrás dela!');
+ }
+ if(level===3&&player.x>430&&!trapTriggered){
+   trapTriggered=true;
+   spikes.forEach(s=>s.active=false);
+   platforms.push({x:player.x+35,y:maps[level].floor-75,w:90,h:14,timer:0});
+   say('O chão ficou invisível... ops!');
+ }
+ if(level===4&&player.x>610&&!trapTriggered){
+   trapTriggered=true;
+   exit.x=90;
+   say('ÚLTIMA PEGADINHA! A porta mudou!');
+ }
+ // Temporary platforms collapse.
+ platforms=platforms.filter(p=>{
+   if(p.timer===undefined)return true;
+   p.timer++;
+   if(p.timer>65){
+     if(player.ground&&player.y+player.h===p.y)player.vy=1;
+     return false;
+   }
+   return true;
+ });
+ // Coins
+ coinList.forEach(a=>{
+   if(!a.got&&overlap(player,{x:a.x-9,y:a.y-9,w:18,h:18})){
+     a.got=true;coins++;$('coins').textContent=coins;say('+1 moeda!');
+   }
+ });
+ // Hazards and falling
+ if(player.y>500){respawn();return}
+ for(const s of spikes){
+   if(s.active&&overlap(player,{x:s.x+3,y:s.y+7,w:s.w-6,h:s.h-7})){
+     respawn();return;
+   }
+ }
+ if(overlap(player,exit))nextLevel();
+ if(noticeTime>0)noticeTime--;
+}
+function draw(){
+ ctx.clearRect(0,0,800,450);
+ // Background
+ ctx.fillStyle='#171a24';ctx.fillRect(0,0,800,450);
+ ctx.fillStyle='#252938';
+ for(let x=0;x<800;x+=40)for(let y=0;y<390;y+=40)ctx.fillRect(x,y,1,1);
+ // Floor
+ platforms.forEach(p=>{
+   ctx.fillStyle=p.timer!==undefined?'#b17b42':'#454957';
+   ctx.fillRect(p.x,p.y,p.w,p.h);
+   ctx.fillStyle='#777e91';ctx.fillRect(p.x,p.y,p.w,5);
+ });
+ // Spikes
+ spikes.forEach(s=>{
+   if(!s.active)return;
+   ctx.fillStyle='#ff3d53';
+   for(let x=s.x;x<s.x+s.w;x+=15){
+     ctx.beginPath();ctx.moveTo(x,s.y+s.h);ctx.lineTo(x+7,s.y);ctx.lineTo(x+14,s.y+s.h);ctx.fill();
+   }
+ });
+ // Coins
+ coinList.forEach(a=>{
+   if(a.got)return;
+   ctx.fillStyle='#ffd447';ctx.beginPath();ctx.arc(a.x,a.y,8,0,Math.PI*2);ctx.fill();
+   ctx.fillStyle='#fff1a8';ctx.beginPath();ctx.arc(a.x-2,a.y-2,3,0,Math.PI*2);ctx.fill();
+ });
+ // Door
+ ctx.fillStyle='#38e67b';ctx.fillRect(exit.x,exit.y,exit.w,exit.h);
+ ctx.fillStyle='#173d2b';ctx.fillRect(exit.x+6,exit.y+8,exit.w-12,exit.h-8);
+ ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(exit.x+25,exit.y+28,3,0,Math.PI*2);ctx.fill();
+ // Player
+ ctx.fillStyle='#55c9ff';ctx.fillRect(player.x,player.y,player.w,player.h);
+ ctx.fillStyle='#fff';
+ ctx.fillRect(player.x+5,player.y+8,5,6);
+ ctx.fillRect(player.x+15,player.y+8,5,6);
+ ctx.fillStyle='#151515';
+ ctx.fillRect(player.x+7,player.y+10,3,3);
+ ctx.fillRect(player.x+16,player.y+10,3,3);
+ ctx.fillStyle='#fff';ctx.fillRect(player.x+7,player.y+23,11,3);
+ if(won){
+   ctx.fillStyle='rgba(0,0,0,.82)';ctx.fillRect(0,0,800,450);
+   ctx.fillStyle='#ffd447';ctx.font='bold 43px Arial';ctx.textAlign='center';
+   ctx.fillText('VOCÊ VENCEU!',400,190);
+   ctx.font='22px Arial';ctx.fillStyle='white';
+   ctx.fillText('Você sobreviveu às 5 fases troll!',400,235);
+   ctx.fillText('Aperte R para jogar novamente',400,280);
+ }
+}
+function loop(){update();draw();requestAnimationFrame(loop)}
+document.addEventListener('keydown',e=>{
+ const k=e.key.length===1?e.key.toLowerCase():e.key;
+ if(['ArrowLeft','ArrowRight','ArrowUp',' '].includes(e.key))e.preventDefault();
+ keys[k]=true;
+ if(k==='r'){
+   if(won){level=0;coins=0;deaths=0}
+   resetPlayer();
+ }
+});
+document.addEventListener('keyup',e=>{
+ const k=e.key.length===1?e.key.toLowerCase():e.key;keys[k]=false;
+});
+function bind(id,key){
+ const b=$(id);
+ const on=e=>{e.preventDefault();hold[key]=true};
+ const off=e=>{e.preventDefault();hold[key]=false};
+ b.addEventListener('pointerdown',on);
+ b.addEventListener('pointerup',off);
+ b.addEventListener('pointerleave',off);
+ b.addEventListener('pointercancel',off);
+}
+bind('left','left');bind('right','right');bind('jump','jump');
+$('restart').onclick=()=>resetPlayer();
+resetPlayer();loop();
+</script>
+</body>
+</html>
+
